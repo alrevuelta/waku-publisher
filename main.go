@@ -87,7 +87,7 @@ func main() {
 	}
 
 	go logPeriodicInfo(wakuNode)
-	go writeLoop(ctx, wakuNode)
+	go writeLoop(ctx, wakuNode, cfg)
 	go runEverySecond(wakuNode, cfg)
 
 	// Wait for a SIGINT or SIGTERM signal
@@ -127,7 +127,7 @@ func runEverySecond(wakuNode *node.WakuNode, cfg *Config) {
 			// eg 5 msg per second are send very quickly and the remaning time to complete
 			// the second is idle.
 			for i := 0; i < int(cfg.MsgPerSecond); i++ {
-				write(context.Background(), wakuNode, cfg.MsgSizeKb)
+				write(context.Background(), wakuNode, cfg.MsgSizeKb, cfg.ContentTopic)
 				msgSent++
 			}
 			end := time.Now().UnixNano() / int64(time.Millisecond)
@@ -145,7 +145,12 @@ func runEverySecond(wakuNode *node.WakuNode, cfg *Config) {
 	}
 }
 
-func write(ctx context.Context, wakuNode *node.WakuNode, sizeKBytes uint64) {
+func write(
+	ctx context.Context,
+	wakuNode *node.WakuNode,
+	sizeKBytes uint64,
+	contentTopic string) {
+
 	var version uint32 = 0
 	var timestamp int64 = utils.GetUnixEpoch(wakuNode.Timesource())
 
@@ -168,7 +173,7 @@ func write(ctx context.Context, wakuNode *node.WakuNode, sizeKBytes uint64) {
 	msg := &pb.WakuMessage{
 		Payload:      payload,
 		Version:      version,
-		ContentTopic: "/this-is-a-test",
+		ContentTopic: contentTopic,
 		Timestamp:    timestamp,
 	}
 
@@ -180,16 +185,17 @@ func write(ctx context.Context, wakuNode *node.WakuNode, sizeKBytes uint64) {
 		fmt.Println("msg size: ", len(msgMarshal), " bytes")*/
 
 	//_, err = wakuNode.Relay().Publish(ctx, msg)
+	// TODO: Use topic from config
 	wakuNode.Relay().PublishToTopic(ctx, msg, relay.DefaultWakuTopic)
 	if err != nil {
 		log.Error("Error sending a message", zap.Error(err))
 	}
 }
 
-func writeLoop(ctx context.Context, wakuNode *node.WakuNode) {
+func writeLoop(ctx context.Context, wakuNode *node.WakuNode, cfg *Config) {
 	for {
 		time.Sleep(2 * time.Second)
-		write(ctx, wakuNode, 500)
+		write(ctx, wakuNode, cfg.MsgSizeKb, cfg.ContentTopic)
 		msgSent++
 	}
 }

@@ -25,4 +25,4 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: alrevuelta/traffic-topic:${{ steps.commit.outputs.short }}
+          tags: alrevuelta/waku-publisher:${{ steps.commit.outputs.short }}

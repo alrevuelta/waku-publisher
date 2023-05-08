@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"os"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -14,6 +17,7 @@ type Config struct {
 	MsgPerSecond  uint64
 	MsgSizeKb     uint64
 	BootstrapNode string
+	PrivateKey    *ecdsa.PrivateKey
 }
 
 // By default the release is a custom build. CI takes care of upgrading it with
@@ -27,6 +31,7 @@ func NewCliConfig() (*Config, error) {
 	var msgPerSecond = flag.Uint64("msg-per-second", 0, "Number of messages to publish per second")
 	var msgSizeKb = flag.Uint64("msg-size-kb", 0, "Size of messages to publish in kilobytes")
 	var bootstrapNode = flag.String("bootstrap-node", "", "Bootstrap node to connect to")
+	var privateKey = flag.String("private-key", "", "Key used to sign messages in configured pubsub topic")
 
 	flag.Parse()
 
@@ -56,12 +61,33 @@ func NewCliConfig() (*Config, error) {
 		return nil, errors.New("Bootstrap node is required")
 	}
 
+	var pKey *ecdsa.PrivateKey
+	var err error
+	pKey = nil
+
+	if *privateKey != "" {
+		pKey, err = crypto.HexToECDSA(*privateKey)
+		if err != nil {
+			return nil, errors.New("wrong private key, couldn't parse it: " + err.Error())
+		}
+		publicKeyECDSA, ok := pKey.Public().(*ecdsa.PublicKey)
+		if !ok {
+			return nil, errors.New("error casting public key to ECDSA: " + err.Error())
+		}
+		//address = crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
+		pubKBytes := crypto.FromECDSAPub(publicKeyECDSA)
+		logrus.Info("Configured public key: ", hex.EncodeToString(pubKBytes))
+	} else {
+		logrus.Info("No key was configured to sign messages with")
+	}
+
 	conf := &Config{
 		PubSubTopic:   *pubSubTopic,
 		ContentTopic:  *contentTopic,
 		MsgPerSecond:  *msgPerSecond,
 		MsgSizeKb:     *msgSizeKb,
 		BootstrapNode: *bootstrapNode,
+		PrivateKey:    pKey,
 	}
 	logConfig(conf)
 	return conf, nil

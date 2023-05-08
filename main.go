@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	logrus "github.com/sirupsen/logrus"
 	"github.com/waku-org/go-waku/waku/v2/node"
 	"github.com/waku-org/go-waku/waku/v2/payload"
@@ -25,6 +27,14 @@ import (
 
 var msgSent = 0
 var log = utils.Logger().Named("basic2")
+
+func newConnManager(lo int, hi int, opts ...connmgr.Option) *connmgr.BasicConnMgr {
+	mgr, err := connmgr.NewConnManager(lo, hi, opts...)
+	if err != nil {
+		panic("could not create ConnManager: " + err.Error())
+	}
+	return mgr
+}
 
 func main() {
 	customFormatter := new(logrus.TextFormatter)
@@ -62,6 +72,14 @@ func main() {
 		//enode.MustParse("enr:-M-4QOth4Dg45mYtbfMf3YZOLaAVrQuNWEyb-rahElFJHeBkCTXe0AMPXO_XtT05UK3_v6nEfQOLWaVGt6WUsM_BpA0BgmlkgnY0gmlwhI_G-a6KbXVsdGlhZGRyc7EALzYobm9kZS0wMS5kby1hbXMzLnN0YXR1cy5wcm9kLnN0YXR1c2ltLm5ldAYBu94DiXNlY3AyNTZrMaECoVyonsTGEQvVioM562Q1fjzTb_vKD152PPIdsV7sM6SDdGNwgnZfg3VkcIIjKIV3YWt1Mg8"),
 		//enode.MustParse("enr:-M-4QHL_casP1Jy4KntHNWT3p1XkPxm1BJSxDi7KucSqZ2PgT97d4xEQ4cJx-bgw0SRu-nO4y5k0jTQN4AH7utodtZMBgmlkgnY0gmlwhKEj9HmKbXVsdGlhZGRyc7EALzYobm9kZS0wMi5kby1hbXMzLnN0YXR1cy5wcm9kLnN0YXR1c2ltLm5ldAYBu94DiXNlY3AyNTZrMaED1AYI2Ox27DnSqf2qoih5M2fNpHFq-OzJ3thREEApdiiDdGNwgnZfg3VkcIIjKIV3YWt1Mg8"),
 	}
+	logrus.Info("DefaultLibP2POptions len: ", len(node.DefaultLibP2POptions))
+	if len(node.DefaultLibP2POptions) != 5 {
+		log.Fatal("DefaultLibP2POptions has changed, please update this code")
+	}
+	// Very dirty way to inject a new ConnManager
+	// TODO: This should keep the max amount of peers to 4 but the manager has a hard time doing so
+	// it stays around 6 or so. Need to investigate
+	node.DefaultLibP2POptions[4] = libp2p.ConnectionManager(newConnManager(1, 4, connmgr.WithGracePeriod(0)))
 
 	wakuNode, err := node.New(
 		node.WithPrivateKey(prvKey),
@@ -127,7 +145,7 @@ func runEverySecond(wakuNode *node.WakuNode, cfg *Config) {
 			// eg 5 msg per second are send very quickly and the remaning time to complete
 			// the second is idle.
 			for i := 0; i < int(cfg.MsgPerSecond); i++ {
-				write(context.Background(), wakuNode, cfg.MsgSizeKb, cfg.ContentTopic)
+				write(context.Background(), wakuNode, cfg)
 				msgSent++
 			}
 			end := time.Now().UnixNano() / int64(time.Millisecond)
@@ -148,13 +166,12 @@ func runEverySecond(wakuNode *node.WakuNode, cfg *Config) {
 func write(
 	ctx context.Context,
 	wakuNode *node.WakuNode,
-	sizeKBytes uint64,
-	contentTopic string) {
+	cfg *Config) {
 
 	var version uint32 = 0
 	var timestamp int64 = utils.GetUnixEpoch(wakuNode.Timesource())
 
-	randomPayload := make([]byte, sizeKBytes*1000)
+	randomPayload := make([]byte, cfg.MsgSizeKb*1000)
 	rand.Read(randomPayload)
 
 	p := new(payload.Payload)
@@ -173,7 +190,7 @@ func write(
 	msg := &pb.WakuMessage{
 		Payload:      payload,
 		Version:      version,
-		ContentTopic: contentTopic,
+		ContentTopic: cfg.ContentTopic,
 		Timestamp:    timestamp,
 	}
 
@@ -185,8 +202,16 @@ func write(
 		fmt.Println("msg size: ", len(msgMarshal), " bytes")*/
 
 	//_, err = wakuNode.Relay().Publish(ctx, msg)
-	// TODO: Use topic from config
-	wakuNode.Relay().PublishToTopic(ctx, msg, relay.DefaultWakuTopic)
+	//wakuNode.Relay().PublishToTopic(ctx, msg, relay.DefaultWakuTopic)
+
+	// Sign only if a key was configured
+	if cfg.PrivateKey != nil {
+		err = relay.SignMessage(cfg.PrivateKey, cfg.PubSubTopic, msg)
+		if err != nil {
+			log.Fatal("Error signing message", zap.Error(err))
+		}
+	}
+	wakuNode.Relay().PublishToTopic(ctx, msg, cfg.PubSubTopic)
 	if err != nil {
 		log.Error("Error sending a message", zap.Error(err))
 	}
@@ -195,7 +220,7 @@ func write(
 func writeLoop(ctx context.Context, wakuNode *node.WakuNode, cfg *Config) {
 	for {
 		time.Sleep(2 * time.Second)
-		write(ctx, wakuNode, cfg.MsgSizeKb, cfg.ContentTopic)
+		write(ctx, wakuNode, cfg)
 		msgSent++
 	}
 }

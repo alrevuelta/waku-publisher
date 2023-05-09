@@ -13,20 +13,20 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
-	logrus "github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/waku-org/go-waku/waku/v2/node"
 	"github.com/waku-org/go-waku/waku/v2/payload"
 	"github.com/waku-org/go-waku/waku/v2/protocol/pb"
 	"github.com/waku-org/go-waku/waku/v2/protocol/relay"
 	"github.com/waku-org/go-waku/waku/v2/utils"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var msgSent = 0
-var log = utils.Logger().Named("basic2")
+
+//var log = utils.Logger().Named("basic2")
 
 func newConnManager(lo int, hi int, opts ...connmgr.Option) *connmgr.BasicConnMgr {
 	mgr, err := connmgr.NewConnManager(lo, hi, opts...)
@@ -37,31 +37,25 @@ func newConnManager(lo int, hi int, opts ...connmgr.Option) *connmgr.BasicConnMg
 }
 
 func main() {
-	customFormatter := new(logrus.TextFormatter)
+	customFormatter := new(log.TextFormatter)
 	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
 	customFormatter.FullTimestamp = true
-	logrus.SetFormatter(customFormatter)
+	log.SetFormatter(customFormatter)
 
 	cfg, err := NewCliConfig()
 	if err != nil {
-		log.Fatal("error parsing config", zap.Error(err))
+		log.Fatal("error parsing config: ", err)
 	}
-
-	lvl, err := logging.LevelFromString("warn")
-	if err != nil {
-		panic(err)
-	}
-	logging.SetAllLoggers(lvl)
 
 	hostAddr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:0")
 	key, err := randomHex(32)
 	if err != nil {
-		log.Error("Could not generate random key", zap.Error(err))
+		log.Error("Could not generate random key: ", err)
 		return
 	}
 	prvKey, err := crypto.HexToECDSA(key)
 	if err != nil {
-		log.Error("Could not convert hex into ecdsa key", zap.Error(err))
+		log.Error("Could not convert hex into ecdsa key: ", err)
 		return
 	}
 
@@ -72,7 +66,7 @@ func main() {
 		//enode.MustParse("enr:-M-4QOth4Dg45mYtbfMf3YZOLaAVrQuNWEyb-rahElFJHeBkCTXe0AMPXO_XtT05UK3_v6nEfQOLWaVGt6WUsM_BpA0BgmlkgnY0gmlwhI_G-a6KbXVsdGlhZGRyc7EALzYobm9kZS0wMS5kby1hbXMzLnN0YXR1cy5wcm9kLnN0YXR1c2ltLm5ldAYBu94DiXNlY3AyNTZrMaECoVyonsTGEQvVioM562Q1fjzTb_vKD152PPIdsV7sM6SDdGNwgnZfg3VkcIIjKIV3YWt1Mg8"),
 		//enode.MustParse("enr:-M-4QHL_casP1Jy4KntHNWT3p1XkPxm1BJSxDi7KucSqZ2PgT97d4xEQ4cJx-bgw0SRu-nO4y5k0jTQN4AH7utodtZMBgmlkgnY0gmlwhKEj9HmKbXVsdGlhZGRyc7EALzYobm9kZS0wMi5kby1hbXMzLnN0YXR1cy5wcm9kLnN0YXR1c2ltLm5ldAYBu94DiXNlY3AyNTZrMaED1AYI2Ox27DnSqf2qoih5M2fNpHFq-OzJ3thREEApdiiDdGNwgnZfg3VkcIIjKIV3YWt1Mg8"),
 	}
-	logrus.Info("DefaultLibP2POptions len: ", len(node.DefaultLibP2POptions))
+	log.Info("DefaultLibP2POptions len: ", len(node.DefaultLibP2POptions))
 	if len(node.DefaultLibP2POptions) != 5 {
 		log.Fatal("DefaultLibP2POptions has changed, please update this code")
 	}
@@ -88,20 +82,21 @@ func main() {
 		node.WithWakuRelay(),
 		node.WithDiscoveryV5(8000, customNodes, true),
 		node.WithDiscoverParams(30),
+		node.WithLogLevel(zapcore.Level(zapcore.ErrorLevel)),
 	)
 	if err != nil {
-		log.Error("Error creating wakunode", zap.Error(err))
+		log.Error("Error creating wakunode: ", err)
 		return
 	}
 
 	if err := wakuNode.Start(ctx); err != nil {
-		log.Error("Error starting wakunode", zap.Error(err))
+		log.Error("Error starting wakunode: ", err)
 		return
 	}
 
 	err = wakuNode.DiscV5().Start(ctx)
 	if err != nil {
-		log.Fatal("Error starting discovery", zap.Error(err))
+		log.Fatal("Error starting discovery: ", err)
 	}
 
 	go logPeriodicInfo(wakuNode)
@@ -183,9 +178,11 @@ func write(
 
 	payload, err := p.Encode(version)
 	if err != nil {
-		log.Error("Error encoding the payload", zap.Error(err))
+		log.Fatal("Error encoding the payload: ", err)
 		return
 	}
+
+	//log.Info("Message payload in kBytes: ", len(p.Data)/1000)
 
 	msg := &pb.WakuMessage{
 		Payload:      payload,
@@ -197,7 +194,7 @@ func write(
 	/*
 		msgMarshal, err := msg.Marshal()
 		if err != nil {
-			log.Error("Error marshalling message", zap.Error(err))
+			log.Error("Error marshalling message: ", err)
 		}
 		fmt.Println("msg size: ", len(msgMarshal), " bytes")*/
 
@@ -208,12 +205,12 @@ func write(
 	if cfg.PrivateKey != nil {
 		err = relay.SignMessage(cfg.PrivateKey, cfg.PubSubTopic, msg)
 		if err != nil {
-			log.Fatal("Error signing message", zap.Error(err))
+			log.Fatal("Error signing message: ", err)
 		}
 	}
 	wakuNode.Relay().PublishToTopic(ctx, msg, cfg.PubSubTopic)
 	if err != nil {
-		log.Error("Error sending a message", zap.Error(err))
+		log.Error("Error sending a message: ", err)
 	}
 }
 

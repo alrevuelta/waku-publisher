@@ -18,6 +18,7 @@ type Config struct {
 	MsgSizeKb      uint64
 	BootstrapNode  string
 	PublishInvalid bool
+	MaxPeers       int
 	PrivateKey     *ecdsa.PrivateKey
 }
 
@@ -34,6 +35,7 @@ func NewCliConfig() (*Config, error) {
 	var bootstrapNode = flag.String("bootstrap-node", "", "Bootstrap node to connect to")
 	var privateKey = flag.String("private-key", "", "Key used to sign messages in configured pubsub topic")
 	var publishInvalid = flag.Bool("publish-invalid", false, "Publish invalid messages to the configured pubsub topic (true/false). default: false")
+	var maxPeers = flag.Int("max-peers", 5, "Maximum number of peers to connect to. default: 5")
 
 	flag.Parse()
 
@@ -90,6 +92,7 @@ func NewCliConfig() (*Config, error) {
 		MsgSizeKb:      *msgSizeKb,
 		BootstrapNode:  *bootstrapNode,
 		PublishInvalid: *publishInvalid,
+		MaxPeers:       *maxPeers,
 		PrivateKey:     pKey,
 	}
 	logConfig(conf)
@@ -103,6 +106,7 @@ func logConfig(cfg *Config) {
 		"MsgPerSecond":   cfg.MsgPerSecond,
 		"MsgSizeKb":      cfg.MsgSizeKb,
 		"PublishInvalid": cfg.PublishInvalid,
+		"MaxPeers":       cfg.MaxPeers,
 		"BootstrapNode":  cfg.BootstrapNode,
 	}).Info("Cli Config:")
 }

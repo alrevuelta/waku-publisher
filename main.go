@@ -72,9 +72,9 @@ func main() {
 		log.Fatal("DefaultLibP2POptions has changed, please update this code")
 	}
 	// Very dirty way to inject a new ConnManager
-	// TODO: This should keep the max amount of peers to 4 but the manager has a hard time doing so
+	// TODO: This should keep the max amount of peers to 5 but the manager has a hard time doing so
 	// it stays around 6 or so. Need to investigate
-	node.DefaultLibP2POptions[4] = libp2p.ConnectionManager(newConnManager(1, 4, connmgr.WithGracePeriod(0)))
+	node.DefaultLibP2POptions[4] = libp2p.ConnectionManager(newConnManager(1, cfg.MaxPeers, connmgr.WithGracePeriod(0)))
 
 	wakuNode, err := node.New(
 		node.WithPrivateKey(prvKey),

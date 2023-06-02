@@ -12,12 +12,13 @@ import (
 )
 
 type Config struct {
-	PubSubTopic   string
-	ContentTopic  string
-	MsgPerSecond  uint64
-	MsgSizeKb     uint64
-	BootstrapNode string
-	PrivateKey    *ecdsa.PrivateKey
+	PubSubTopic    string
+	ContentTopic   string
+	MsgPerSecond   uint64
+	MsgSizeKb      uint64
+	BootstrapNode  string
+	PublishInvalid bool
+	PrivateKey     *ecdsa.PrivateKey
 }
 
 // By default the release is a custom build. CI takes care of upgrading it with
@@ -32,6 +33,7 @@ func NewCliConfig() (*Config, error) {
 	var msgSizeKb = flag.Uint64("msg-size-kb", 0, "Size of messages to publish in kilobytes")
 	var bootstrapNode = flag.String("bootstrap-node", "", "Bootstrap node to connect to")
 	var privateKey = flag.String("private-key", "", "Key used to sign messages in configured pubsub topic")
+	var publishInvalid = flag.Bool("publish-invalid", false, "Publish invalid messages to the configured pubsub topic (true/false). default: false")
 
 	flag.Parse()
 
@@ -82,12 +84,13 @@ func NewCliConfig() (*Config, error) {
 	}
 
 	conf := &Config{
-		PubSubTopic:   *pubSubTopic,
-		ContentTopic:  *contentTopic,
-		MsgPerSecond:  *msgPerSecond,
-		MsgSizeKb:     *msgSizeKb,
-		BootstrapNode: *bootstrapNode,
-		PrivateKey:    pKey,
+		PubSubTopic:    *pubSubTopic,
+		ContentTopic:   *contentTopic,
+		MsgPerSecond:   *msgPerSecond,
+		MsgSizeKb:      *msgSizeKb,
+		BootstrapNode:  *bootstrapNode,
+		PublishInvalid: *publishInvalid,
+		PrivateKey:     pKey,
 	}
 	logConfig(conf)
 	return conf, nil
@@ -95,10 +98,11 @@ func NewCliConfig() (*Config, error) {
 
 func logConfig(cfg *Config) {
 	logrus.WithFields(logrus.Fields{
-		"PubSubTopic":   cfg.PubSubTopic,
-		"ContentTopic":  cfg.ContentTopic,
-		"MsgPerSecond":  cfg.MsgPerSecond,
-		"MsgSizeKb":     cfg.MsgSizeKb,
-		"BootstrapNode": cfg.BootstrapNode,
+		"PubSubTopic":    cfg.PubSubTopic,
+		"ContentTopic":   cfg.ContentTopic,
+		"MsgPerSecond":   cfg.MsgPerSecond,
+		"MsgSizeKb":      cfg.MsgSizeKb,
+		"PublishInvalid": cfg.PublishInvalid,
+		"BootstrapNode":  cfg.BootstrapNode,
 	}).Info("Cli Config:")
 }

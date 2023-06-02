@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 	"github.com/waku-org/go-waku/waku/v2/node"
 	"github.com/waku-org/go-waku/waku/v2/payload"
 	"github.com/waku-org/go-waku/waku/v2/protocol/pb"
@@ -158,6 +159,14 @@ func runEverySecond(wakuNode *node.WakuNode, cfg *Config) {
 	}
 }
 
+func PublishRawToTopic(ctx context.Context, w *relay.WakuRelay, rawData []byte, topic string) {
+	// Publish a `WakuMessage` to a PubSub topic.
+	err := w.PubSub().Publish(topic, rawData)
+	if err != nil {
+		logrus.Error("Error publishing message: ", err)
+	}
+}
+
 func write(
 	ctx context.Context,
 	wakuNode *node.WakuNode,
@@ -201,16 +210,21 @@ func write(
 	//_, err = wakuNode.Relay().Publish(ctx, msg)
 	//wakuNode.Relay().PublishToTopic(ctx, msg, relay.DefaultWakuTopic)
 
-	// Sign only if a key was configured
-	if cfg.PrivateKey != nil {
-		err = relay.SignMessage(cfg.PrivateKey, cfg.PubSubTopic, msg)
-		if err != nil {
-			log.Fatal("Error signing message: ", err)
+	if cfg.PublishInvalid {
+		// Publish invalid messages to the topic, just random bytes
+		PublishRawToTopic(ctx, wakuNode.Relay(), msg.Payload, cfg.PubSubTopic)
+	} else {
+		// Sign only if a key was configured
+		if cfg.PrivateKey != nil {
+			err = relay.SignMessage(cfg.PrivateKey, cfg.PubSubTopic, msg)
+			if err != nil {
+				log.Fatal("Error signing message: ", err)
+			}
 		}
-	}
-	wakuNode.Relay().PublishToTopic(ctx, msg, cfg.PubSubTopic)
-	if err != nil {
-		log.Error("Error sending a message: ", err)
+		_, err = wakuNode.Relay().PublishToTopic(ctx, msg, cfg.PubSubTopic)
+		if err != nil {
+			log.Error("Error sending a message: ", err)
+		}
 	}
 }
 

@@ -101,8 +101,7 @@ func main() {
 	}
 
 	go logPeriodicInfo(wakuNode)
-	go writeLoop(ctx, wakuNode, cfg)
-	go runEverySecond(wakuNode, cfg)
+	go runEvery(wakuNode, cfg)
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)
@@ -129,8 +128,9 @@ func randomHex(n int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func runEverySecond(wakuNode *node.WakuNode, cfg *Config) {
-	ticker := time.NewTicker(1 * time.Second)
+func runEvery(wakuNode *node.WakuNode, cfg *Config) {
+	tickInSeconds := int64(1)
+	ticker := time.NewTicker(time.Duration(tickInSeconds) * time.Second)
 	quit := make(chan struct{})
 	for {
 		select {
@@ -149,7 +149,7 @@ func runEverySecond(wakuNode *node.WakuNode, cfg *Config) {
 			diff := end - start
 			fmt.Println("Duration(ms):", diff)
 			// do something if message rate is greater than what can be handled
-			if diff > 1000 {
+			if diff > tickInSeconds*1000 {
 				fmt.Println("Warning: took more than 1 second")
 			}
 		case <-quit:
@@ -216,22 +216,27 @@ func write(
 	} else {
 		// Sign only if a key was configured
 		if cfg.PrivateKey != nil {
-			err = relay.SignMessage(cfg.PrivateKey, cfg.PubSubTopic, msg)
+			err = relay.SignMessage(cfg.PrivateKey, msg, cfg.PubSubTopic)
 			if err != nil {
 				log.Fatal("Error signing message: ", err)
 			}
 		}
+		// only log valid messages
+		// log here the time is not really far, as it take time to publish. not usre if
+		// after or before.
+		if cfg.LogSentMessages {
+			log.WithFields(log.Fields{
+				"peerId":      wakuNode.ID(),
+				"pubsubTopic": cfg.PubSubTopic,
+				"hash":        "0x" + hex.EncodeToString(msg.Hash(cfg.PubSubTopic)),
+				"sentTime":    time.Now().UnixNano(),
+				//"payloadSizeBytes": len(msg.Payload),
+			}).Info("Published message")
+		}
+
 		_, err = wakuNode.Relay().PublishToTopic(ctx, msg, cfg.PubSubTopic)
 		if err != nil {
 			log.Error("Error sending a message: ", err)
 		}
-	}
-}
-
-func writeLoop(ctx context.Context, wakuNode *node.WakuNode, cfg *Config) {
-	for {
-		time.Sleep(2 * time.Second)
-		write(ctx, wakuNode, cfg)
-		msgSent++
 	}
 }

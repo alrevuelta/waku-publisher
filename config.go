@@ -12,14 +12,15 @@ import (
 )
 
 type Config struct {
-	PubSubTopic    string
-	ContentTopic   string
-	MsgPerSecond   uint64
-	MsgSizeKb      uint64
-	BootstrapNode  string
-	PublishInvalid bool
-	MaxPeers       int
-	PrivateKey     *ecdsa.PrivateKey
+	PubSubTopic     string
+	ContentTopic    string
+	MsgPerSecond    uint64
+	MsgSizeKb       uint64
+	BootstrapNode   string
+	PublishInvalid  bool
+	MaxPeers        int
+	PrivateKey      *ecdsa.PrivateKey
+	LogSentMessages bool
 }
 
 // By default the release is a custom build. CI takes care of upgrading it with
@@ -36,6 +37,7 @@ func NewCliConfig() (*Config, error) {
 	var privateKey = flag.String("private-key", "", "Key used to sign messages in configured pubsub topic")
 	var publishInvalid = flag.Bool("publish-invalid", false, "Publish invalid messages to the configured pubsub topic (true/false). default: false")
 	var maxPeers = flag.Int("max-peers", 5, "Maximum number of peers to connect to. default: 5")
+	var logSentMessages = flag.Bool("log-sent-messages", false, "Logs the messages that are sent. default: false")
 
 	flag.Parse()
 
@@ -86,14 +88,15 @@ func NewCliConfig() (*Config, error) {
 	}
 
 	conf := &Config{
-		PubSubTopic:    *pubSubTopic,
-		ContentTopic:   *contentTopic,
-		MsgPerSecond:   *msgPerSecond,
-		MsgSizeKb:      *msgSizeKb,
-		BootstrapNode:  *bootstrapNode,
-		PublishInvalid: *publishInvalid,
-		MaxPeers:       *maxPeers,
-		PrivateKey:     pKey,
+		PubSubTopic:     *pubSubTopic,
+		ContentTopic:    *contentTopic,
+		MsgPerSecond:    *msgPerSecond,
+		MsgSizeKb:       *msgSizeKb,
+		BootstrapNode:   *bootstrapNode,
+		PublishInvalid:  *publishInvalid,
+		MaxPeers:        *maxPeers,
+		PrivateKey:      pKey,
+		LogSentMessages: *logSentMessages,
 	}
 	logConfig(conf)
 	return conf, nil
@@ -101,12 +104,13 @@ func NewCliConfig() (*Config, error) {
 
 func logConfig(cfg *Config) {
 	logrus.WithFields(logrus.Fields{
-		"PubSubTopic":    cfg.PubSubTopic,
-		"ContentTopic":   cfg.ContentTopic,
-		"MsgPerSecond":   cfg.MsgPerSecond,
-		"MsgSizeKb":      cfg.MsgSizeKb,
-		"PublishInvalid": cfg.PublishInvalid,
-		"MaxPeers":       cfg.MaxPeers,
-		"BootstrapNode":  cfg.BootstrapNode,
+		"PubSubTopic":     cfg.PubSubTopic,
+		"ContentTopic":    cfg.ContentTopic,
+		"MsgPerSecond":    cfg.MsgPerSecond,
+		"MsgSizeKb":       cfg.MsgSizeKb,
+		"PublishInvalid":  cfg.PublishInvalid,
+		"MaxPeers":        cfg.MaxPeers,
+		"BootstrapNode":   cfg.BootstrapNode,
+		"LogSentMessages": cfg.LogSentMessages,
 	}).Info("Cli Config:")
 }

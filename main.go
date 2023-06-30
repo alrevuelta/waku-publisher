@@ -13,7 +13,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	log "github.com/sirupsen/logrus"
 	logrus "github.com/sirupsen/logrus"
@@ -67,14 +66,17 @@ func main() {
 		//enode.MustParse("enr:-M-4QOth4Dg45mYtbfMf3YZOLaAVrQuNWEyb-rahElFJHeBkCTXe0AMPXO_XtT05UK3_v6nEfQOLWaVGt6WUsM_BpA0BgmlkgnY0gmlwhI_G-a6KbXVsdGlhZGRyc7EALzYobm9kZS0wMS5kby1hbXMzLnN0YXR1cy5wcm9kLnN0YXR1c2ltLm5ldAYBu94DiXNlY3AyNTZrMaECoVyonsTGEQvVioM562Q1fjzTb_vKD152PPIdsV7sM6SDdGNwgnZfg3VkcIIjKIV3YWt1Mg8"),
 		//enode.MustParse("enr:-M-4QHL_casP1Jy4KntHNWT3p1XkPxm1BJSxDi7KucSqZ2PgT97d4xEQ4cJx-bgw0SRu-nO4y5k0jTQN4AH7utodtZMBgmlkgnY0gmlwhKEj9HmKbXVsdGlhZGRyc7EALzYobm9kZS0wMi5kby1hbXMzLnN0YXR1cy5wcm9kLnN0YXR1c2ltLm5ldAYBu94DiXNlY3AyNTZrMaED1AYI2Ox27DnSqf2qoih5M2fNpHFq-OzJ3thREEApdiiDdGNwgnZfg3VkcIIjKIV3YWt1Mg8"),
 	}
-	log.Info("DefaultLibP2POptions len: ", len(node.DefaultLibP2POptions))
-	if len(node.DefaultLibP2POptions) != 5 {
-		log.Fatal("DefaultLibP2POptions has changed, please update this code")
-	}
-	// Very dirty way to inject a new ConnManager
-	// TODO: This should keep the max amount of peers to 5 but the manager has a hard time doing so
-	// it stays around 6 or so. Need to investigate
-	node.DefaultLibP2POptions[4] = libp2p.ConnectionManager(newConnManager(1, cfg.MaxPeers, connmgr.WithGracePeriod(0)))
+
+	/*
+		log.Info("DefaultLibP2POptions len: ", len(node.DefaultLibP2POptions))
+		if len(node.DefaultLibP2POptions) != 5 {
+			log.Fatal("DefaultLibP2POptions has changed, please update this code")
+		}
+		// Very dirty way to inject a new ConnManager
+		// TODO: This should keep the max amount of peers to 5 but the manager has a hard time doing so
+		// it stays around 6 or so. Need to investigate
+		node.DefaultLibP2POptions[4] = libp2p.ConnectionManager(newConnManager(1, cfg.MaxPeers, connmgr.WithGracePeriod(0)))
+	*/
 
 	wakuNode, err := node.New(
 		node.WithPrivateKey(prvKey),
